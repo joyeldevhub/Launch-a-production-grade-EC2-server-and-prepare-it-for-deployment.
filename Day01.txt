@@ -1,0 +1,138 @@
+# PROJECT 1 — DAY 1 OPERATIONS
+
+Today’s goal is simple:
+
+**Launch a production-grade EC2 server and prepare it for deployment.**
+
+This is your battlefield setup.
+
+---
+
+# **STEP 1 — Create the EC2 Instance (Mandatory)**
+
+Choose:
+
+* **AMI:** Ubuntu 22.04 LTS
+* **Instance type:** t2.micro (Free Tier)
+* **Storage:** 16 GB
+* **VPC:** Default OK
+* **Subnet:** Any
+* **Auto-assign public IP:** Enabled
+* **Security Group:**
+
+  * SSH → 22 → Your IP only
+  * HTTP → 80 → Anywhere
+
+Download the **.pem key** and keep it safe.
+
+---
+
+# **STEP 2 — SSH into the EC2**
+
+From your system:
+
+```
+chmod 400 yourkey.pem
+ssh -i yourkey.pem ubuntu@<EC2-PUBLIC-IP>
+```
+
+If you reach the terminal, the server is yours.
+
+---
+
+# **STEP 3 — Basic Server Hardening**
+
+Run the following inside EC2:
+
+```
+sudo apt update -y
+sudo apt upgrade -y
+sudo apt install git curl unzip -y
+```
+
+Install firewall (but don’t lock yourself out):
+
+```
+sudo ufw allow ssh
+sudo ufw allow http
+sudo ufw enable
+```
+
+---
+
+# **STEP 4 — Install Nginx (Reverse Proxy)**
+
+This makes your app accessible on the internet.
+
+```
+sudo apt install nginx -y
+sudo systemctl enable nginx
+sudo systemctl start nginx
+```
+
+Check:
+
+Go to your EC2 public IP → You should see “Welcome to nginx”.
+
+If yes, infra is confirmed.
+
+---
+
+# **STEP 5 — Install Python + Framework**
+
+We will use **Flask** (simple, powerful, great for DevOps projects).
+
+```
+sudo apt install python3 python3-pip -y
+pip3 install flask gunicorn
+```
+
+---
+
+# **STEP 6 — Create Project Folder**
+
+```
+mkdir ~/app
+cd ~/app
+```
+
+Create a basic app:
+
+```
+nano app.py
+```
+
+Paste:
+
+```
+from flask import Flask
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Deployment Success - DevOps Project 1"
+
+if __name__ == "__main__":
+    app.run(host='0.0.0.0')
+```
+
+Run test:
+
+```
+python3 app.py
+```
+
+Go to **EC2-PUBLIC-IP:5000** → You should see the message.
+
+Stop the script using CTRL+C.
+
+---
+
+# **STEP 7 — Deploy with Gunicorn**
+
+```
+gunicorn --bind 0.0.0.0:5000 app:app
+```
+
+If it works, perfect.
+
