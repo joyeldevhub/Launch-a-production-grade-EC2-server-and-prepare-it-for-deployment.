@@ -3,7 +3,7 @@
 ## Goal: Learn EC2, S3, VPC, Load Balancers, IAM
 ## Industry-grade skills: Networking, autoscaling, secure infra
 
-### What you will build
+### What will I build?
 
 #### A small Flask/Django/Node app
 
@@ -13,7 +13,7 @@
 => Add S3 for static files
 => Add CloudWatch alarms
 
-### What you learn automatically
+### What did I learn from this project?
 => EC2
 => VPC (subnets, routing, security groups)
 => S3
