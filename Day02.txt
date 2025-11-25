@@ -1,0 +1,190 @@
+Turn your running Flask+Gunicorn into a stable, always‑on service behind Nginx — production‑style basics.
+
+You’ll:
+
+1. Create a systemd service for Gunicorn
+2. Configure Nginx as reverse proxy on port 80
+3. Adjust Security Group rules as needed
+4. Test access via plain http://EC2_PUBLIC_IP
+
+---
+
+### Step 1 — SSH into your EC2 instance
+
+If not already inside EC2:
+
+```bash
+ssh -i yourkey.pem ubuntu@<EC2_PUBLIC_IP>
+```
+
+Confirm you’re at something like:
+
+```
+ubuntu@ip-xx-xx-xx-xx:~$
+```
+
+---
+
+### Step 2 — Make sure Gunicorn is installed in EC2
+
+If you skipped earlier, run:
+
+```bash
+sudo apt update -y
+sudo apt install python3-pip -y
+pip3 install gunicorn
+```
+
+Verify:
+
+```bash
+gunicorn --version
+```
+
+---
+
+### Step 3 — Create systemd service for Gunicorn
+
+Assume your app is at `~/app/app.py`, and you want Gunicorn to bind to a local socket or port. We’ll use a socket approach, but port is fine too. Quick and simple:
+
+1. Create a service file:
+
+```bash
+sudo nano /etc/systemd/system/gunicorn.service
+```
+
+Paste this minimal config:
+
+```
+[Unit]
+Description=gunicorn daemon for Flask app
+After=network.target
+
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/home/ubuntu/app
+ExecStart=/usr/bin/gunicorn --workers 3 --bind unix:/home/ubuntu/app/gunicorn.sock app:app
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Save and exit.
+
+2. Reload systemd, start, enable on boot:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl start gunicorn
+sudo systemctl enable gunicorn
+```
+
+3. Check status:
+
+```bash
+sudo systemctl status gunicorn
+```
+
+It should show active(running). If errors, check logs:
+
+```bash
+journalctl -u gunicorn --no-pager --no-hostname -n 50
+```
+
+---
+
+### Step 4 — Configure Nginx as reverse proxy
+
+You already installed Nginx on Day 01. Now point it to the Gunicorn socket.
+
+1. Create a new Nginx server block:
+
+```bash
+sudo nano /etc/nginx/sites-available/app
+```
+
+Paste:
+
+```
+server {
+    listen 80;
+    server_name _;  # use your domain later or keep _ for all
+
+    location / {
+        include proxy_params;
+        proxy_pass http://unix:/home/ubuntu/app/gunicorn.sock;
+    }
+}
+```
+
+2. Enable it and disable the default if desired:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/app /etc/nginx/sites-enabled
+sudo rm /etc/nginx/sites-enabled/default
+```
+
+3. Test Nginx config:
+
+```bash
+sudo nginx -t
+```
+
+If OK, reload:
+
+```bash
+sudo systemctl reload nginx
+```
+
+---
+
+### Step 5 — Security Group check
+
+Your EC2 instance must allow HTTP traffic on port 80 so clients can reach Nginx.
+
+* In AWS console, for the instance’s Security Group, ensure **Inbound rule** allows TCP port 80 from your desired source.
+* Security Groups control what traffic reaches your instance; without an inbound rule you wouldn’t get HTTP even if Nginx is running. ([AWS Documentation][1])
+
+If testing only, 0.0.0.0/0 is fine. For tighter security later, limit to your IP or your domain needs.
+
+---
+
+### Step 6 — Test from your browser
+
+Open:
+
+```
+http://<EC2_PUBLIC_IP>
+```
+
+You should see:
+
+```
+Deployment Success - DevOps Project 1
+```
+
+coming from your Flask app served by Gunicorn behind Nginx.
+
+---
+
+### Step 7 — Optional quick sanity checks
+
+* Stop the Gunicorn service:
+
+  ```bash
+  sudo systemctl stop gunicorn
+  ```
+
+  Browser should fail or show nothing. Restart to confirm.
+
+* View Gunicorn logs if something breaks, then reload Nginx.
+
+---
+
+## Why this order matters
+
+* Gunicorn is designed to sit behind a proxy. Using Nginx is strongly recommended to handle buffering and protect Gunicorn from slow clients or DoS‑type issues. 
+* systemd keeps Gunicorn running across reboots and lets you manage it like any other service.
+
+---
